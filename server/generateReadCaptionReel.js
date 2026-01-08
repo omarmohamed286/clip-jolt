@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'node:url';
 import ffmpeg from 'fluent-ffmpeg';
 import dotenv from 'dotenv';
 dotenv.config();
@@ -14,6 +15,12 @@ const generateTextWithLLM = async (mainText, subText) => {
     if (!process.env.OPENAI_API_KEY) {
         throw new Error("Missing OPENAI_API_KEY. Set it to run the OpenAI warmup call.");
     }
+    
+    // Enhance prompt to request variation
+    const variationPrompt = MAIN_TEXT_PROMPT + `
+
+IMPORTANT: You must generate a UNIQUE and DIFFERENT hook each time. Do NOT repeat the same hook. Vary the number, wording, and angle. Choose from the approved templates or create a new variation that matches the tone and style. Each generation should feel fresh and different from previous ones.`;
+    
     const response = await generateObject({
         model: openai("gpt-4o-mini"),
         schema: z.object({
@@ -21,7 +28,8 @@ const generateTextWithLLM = async (mainText, subText) => {
             caption: z.string().describe("Full long-form caption with emojis and numbered bullets"),
             cta: z.string().describe("Comment keyword CTA line")
         }),
-        prompt: MAIN_TEXT_PROMPT,
+        prompt: variationPrompt,
+        temperature: 0.9, // Higher temperature for more variation
     });
     return response.object
 };
@@ -174,7 +182,7 @@ function wrapText(text, maxCharsPerLine = 30) {
 /**
  * Main video processing function
  */
-async function processVideo() {
+export async function generateReadCaptionReel() {
     const inputFile = 'bRoll.mov';
 
     if (!fs.existsSync(inputFile)) {
@@ -357,16 +365,33 @@ async function processVideo() {
                 .run();
         });
 
-        return outputPath;
+        // Read caption file content if needed
+        const captionContent = `${hook}\n\n${caption}\n\n${cta}`;
+        const captionPath = path.join(outputFolder, 'caption.txt');
+        fs.writeFileSync(captionPath, captionContent);
+        console.log(`✓ Caption saved: ${captionPath}`);
+
+        return {
+            outputFolder,
+            videoPath: outputPath,
+            captionPath,
+            hook,
+            caption,
+            cta
+        };
     } finally {
         // Clean up temp files
         fs.rmSync(tempDir, { recursive: true, force: true });
     }
 }
 
-
-processVideo()
-    .catch(err => {
-        console.error('Error:', err.message);
-        process.exit(1);
-    });
+// Allow running directly as a script
+const __filename = fileURLToPath(import.meta.url);
+const mainPath = process.argv[1] ? path.normalize(process.argv[1]) : '';
+if (mainPath && path.normalize(__filename) === mainPath) {
+    generateReadCaptionReel()
+        .catch(err => {
+            console.error('Error:', err.message);
+            process.exit(1);
+        });
+}

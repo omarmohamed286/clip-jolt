@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
+import { fileURLToPath } from "node:url";
 import { generateText } from "ai";
 import { openai } from "@ai-sdk/openai";
 import puppeteer from "puppeteer";
@@ -343,7 +344,7 @@ async function overlayCodeOnVideoWithAudio(backgroundVideo, overlayImage, audioP
   });
 }
 
-async function main() {
+export async function generateCodingChallengeReel() {
   const outputDir = `./${getTimestampedFolder()}`;
   const imagePath = path.join(outputDir, "snippet.png");
   const bRollSegmentPath = path.join(outputDir, "broll_segment.mp4");
@@ -403,12 +404,27 @@ async function main() {
     console.log(`🎬 B-roll segment: ${bRollSegmentPath}`);
     console.log(`🎵 Audio: ${path.basename(audioPath)}`);
     console.log(`⏱️  Level appears at: ${DEFAULTS.levelAppearTime}s`);
+
+    return {
+      outputDir,
+      videoPath,
+      captionPath,
+      imagePath,
+      bRollSegmentPath,
+      audioPath,
+      snippet
+    };
   } finally {
     await browser.close();
   }
 }
 
-main().catch((err) => {
-  console.error("Error:", err.message);
-  process.exit(1);
-});
+// Allow running directly as a script
+const __filename = fileURLToPath(import.meta.url);
+const mainPath = process.argv[1] ? path.normalize(process.argv[1]) : '';
+if (mainPath && path.normalize(__filename) === mainPath) {
+  generateCodingChallengeReel().catch((err) => {
+    console.error("Error:", err.message);
+    process.exit(1);
+  });
+}
